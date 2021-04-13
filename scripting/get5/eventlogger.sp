@@ -22,7 +22,14 @@ static void EventLogger_LogEvent(const char[] eventName, JSON_Object params) {
 
     char logPath[PLATFORM_MAX_PATH];
     if (FormatCvarString(g_EventLogFormatCvar, logPath, sizeof(logPath))) {
-      LogToFileEx(logPath, buffer);
+      File hLogFile = OpenFile(logPath, "a+");
+
+      if (hLogFile) {
+        LogToOpenFileEx(hLogFile, buffer);
+        CloseHandle(hLogFile);
+      } else {
+        LogError("Could not open file \"%s\"", logPath);
+      }
     }
 
     LogDebug("Calling Get5_OnEvent(event name = %s)", eventName);
@@ -59,6 +66,14 @@ static void AddPlayer(JSON_Object params, const char[] key, int client) {
     Format(value, sizeof(value), "none");
   }
   params.SetString(key, value);
+}
+
+static void AddIpAddress(JSON_Object params, int client) {
+  char value[32];
+  if (IsValidClient(client)) {
+    GetClientIP(client, value, sizeof(value));
+  }
+  params.SetString("ip", value);
 }
 
 public void EventLogger_SeriesStart() {
@@ -173,6 +188,13 @@ public void EventLogger_SeriesEnd(MatchTeam winner, int t1score, int t2score) {
   EventLogger_EndEvent("series_end");
 }
 
+public void EventLogger_SeriesCancel(int t1score, int t2score) {
+  EventLogger_StartEvent();
+  params.SetInt("team1_series_score", t1score);
+  params.SetInt("team2_series_score", t2score);
+  EventLogger_EndEvent("series_cancel");
+}
+
 public void EventLogger_BackupLoaded(const char[] path) {
   EventLogger_StartEvent();
   params.SetString("file", path);
@@ -221,6 +243,7 @@ public void EventLogger_PlayerConnect(int client) {
   EventLogger_StartEvent();
   AddMapData(params);
   AddPlayer(params, "client", client);
+  AddIpAddress(params, client);
   EventLogger_EndEvent("player_connect");
 }
 
